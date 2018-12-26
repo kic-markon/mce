@@ -172,7 +172,7 @@
   #+os-unix "/tmp/logo.gif"
   #+linux "/tmp/logo.gif"
   #+win32 "logo.gif"
- "Path of the logo file, first generated then read back"
+ "Path of the logo file, first generated from raw data, then read back into Ltk"
 )
 
 
@@ -370,6 +370,7 @@
         (return)))))
 
 (defmethod no-calls((c cage))
+  "T if no calls for the cage with the current direction"
   (with-slots (pos dir waiting boarded yield) c
     (and (null yield) 
          (case dir
@@ -382,6 +383,7 @@
            (otherwise t)))))
 
 (defmethod stop-here((c cage))
+  "There is a reason to stop: call here, directed here by yield, or no calls"
   (with-slots (pos yield) c
       (or 
        (no-calls c)
@@ -390,6 +392,7 @@
        (and yield (= yield pos)))))
 
 (defmethod blocked((c cage))
+  "Cage is blocked by other cage ahead, it will be asked to yield"
   (with-slots (pos dir waiting boarded ahead behind blocker) c
     (let* ((x (closest-stop c))
            (y (case dir
@@ -402,6 +405,7 @@
       (setf blocker b))))
 
 (defmethod set-dir((c cage))
+  "Set the direction to shaft direction if there are passengers, or NIL"
   (with-slots (pos dir waiting boarded shaft yield) c
     (let ((new-dir
            (case (dir shaft)
@@ -418,12 +422,14 @@
       (setf dir new-dir))))
 
 (defmethod scan((s shaft))
+  "Execute events for cages in shaft and return T if all are idling"
   (let ((res t))
     (dolist (c (cages s))
       (unless (eql (update c) 'idle) (setf res nil)))
     res))
 
 (defmethod turn ((s shaft) d)
+  "Turn around the shaft direction and show in GUI"
   (with-slots (cages dir view up-dir down-dir) s
     (setf dir d)
     (case d
@@ -436,6 +442,7 @@
 ))
 
 (defmethod over((s shaft))
+  "T if no passengers for any of the cages"
   (let ((x t))
     (dolist (c (cages s))
       (when (waiting c) (setf x nil))
@@ -443,6 +450,7 @@
     x))
 
 (defun run-shaft(s)
+  "Try running cages, return NIL if all idle, T if things are happening"
   (block nil
       (when (over s) (return nil))
       (when (scan s)
@@ -450,10 +458,12 @@
     t))
 
 (defun run-sim(s n)
+  "Run the shaft a given number of time steps"
   (dotimes (i n)
     (run-shaft s)))
 
 (defun home-all(s)
+  "Remove all passengers, remove cages into garage, make them idle"
   (dolist (c (cages s))
     (setf (pos c) (home c) (dir c) (dir (shaft c)) (state c) 'idle)
     (dolist (p (waiting c))
@@ -467,6 +477,7 @@
 )
 
 (defun home-all-shafts()
+  "Home all the shafts in the building"
   (dolist (s (shafts *bldg*))
     (home-all s))
   (dolist (p *finished*)
@@ -483,12 +494,14 @@
 
 
 (defun no-psg()
+  "T if no passengers in simulation"
   (let ((all t))
     (dolist (s (shafts *bldg*))
       (unless (over s) (setq all nil)))
     all))
 
 (defun go-sim()
+  "Run simulation for one time step, schedule next step after a delay"
   (dolist (s (shafts *bldg*))
     (run-shaft s))
     (if (no-psg)
@@ -498,12 +511,14 @@
 
 
 (defmethod disp((s shaft) id pos)
+  "Show the current positions of cages in the shaft as colored squares"
   (with-slots (cpos y) s
   (ltk:itemconfigure (view s) (aref y (+ y-offs (aref cpos id))) :fill *bg-col*)
   (ltk:itemconfigure (view s) (aref y (+ y-offs pos)) :fill (aref col id))
   (setf (aref cpos id) pos)))
 
 (defmethod disp-call((p passg))
+  "Show the passenger origin and destination with the color of its cage"
   (with-slots (from to view id sid dir) p
     (incf ncall)
     (multiple-value-bind (y0 x0) (values-list (aref *call-pos* from ncall))
@@ -523,18 +538,22 @@
                   
  
 (defmethod disp-board((p passg))
+  "Handle display update for boarded passenger"
    (with-slots (view) p
      (ltk:itemconfigure (view *passenger-plane*) (nth 0 view) :outline "powder blue")))
 
 (defmethod disp-leave((p passg))
+  "Handle display update for served passenger"
    (with-slots (view) p
      (ltk:itemconfigure (view *passenger-plane*) (nth 1 view) :fill "powder blue")))
  
   
-(defun start-ltk(&optional arg)
-(declare (ignore arg))
+(defun main(&optional arg)
+  "Main entry, called from system"
+(declare (ignore arg)) 
 (block main
-(ignore-errors
+(ignore-errors  ;; comment out this if debugging
+ ;; Create the "logo.gif" file in /tmp (Unix) or in current directory (Windows)
     (with-open-file (ll *logo-file* :direction :output 
                         :if-exists :supersede :if-does-not-exist :create 
                         :element-type '(unsigned-byte 8)) (write-sequence logo0 ll))
@@ -542,10 +561,12 @@
     (ltk:start-wish)
     (ltk:wm-title ltk::*tk* "LINEARITY MULTI-CAR SIMULATOR")
 
+;; Initial screen: numerical entry fields for setup values
 (let* ((fm (make-instance 'ltk:frame :master nil :width w))
        (be1 (make-instance 'ltk:entry :master fm :text "2" :width 4))
        (be2 (make-instance 'ltk:entry :master fm :text "3" :width 4))
        (be3 (make-instance 'ltk:entry :master fm :text "12" :width 4))
+       ;; Main program will be started from this button:
        (bb1 (make-instance 'ltk:button :master fm :text "START" 
               :command (lambda () 
                          (setq *ns* (parse-integer (ltk:text be1)))
