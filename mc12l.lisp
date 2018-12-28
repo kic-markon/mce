@@ -237,13 +237,25 @@
 (defun range(start len)
   (loop for i from start for n below len collecting i))
 
-(defun make-shaft(nc top id)
+(defun range2(start end)
+  (loop for i from start below end collecting i))
+
+(defun zones(n i) 
+  (if (= i 0) 0
+      (sqrt (+ (/ 1 n) (expt (zones n (1- i)) 2)))))
+
+(defun zones2(n i l)
+  (floor (* l (zones n i))))
+
+(defun make-shaft(nc top id &optional (lin nil))
   (let* ((s (make-instance 'shaft :dir 'up :nc nc :top top :cpos (make-array (1+ nc)) :id id))
          (l (floor (/ top nc)))
          (b nil)
          (c nil))
     (dotimes (i nc)
-      (setf c (make-cage (- i nc) (range (* i l) l) s nc))
+      (if lin
+          (setf c (make-cage (- i nc) (range (* i l) l) s nc))
+          (setf c (make-cage (- i nc) (range2 (zones2 nc i top) (zones2 nc (1+ i) top)) s nc)))
       (when b (setf (ahead b) c))
       (setf (behind c) b)
       (setf b c))
@@ -298,7 +310,7 @@
             (board (board c) 'close)
             (close (if (no-calls c) 'idle 'route))
             (route (if (blocked c) 'route 'run))
-            (run (if (stop-here c) 'open (progn (advance c) 'run)))))))
+            (run (if (stop-here c) 'open (if (blocked c) 'route (progn (advance c) 'run))))))))
 
 (defmethod advance((c cage))
   (with-slots (pos dir ahead behind id nc yield state shaft) c
@@ -408,6 +420,7 @@
                 (down (if (and x behind (>= (pos behind) x)) behind nil)))))
       (when b 
         (setf (yield b) y)
+        (blocked b)
         (set-dir b))
       (setf blocker b))))
 
