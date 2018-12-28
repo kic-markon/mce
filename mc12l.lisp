@@ -154,6 +154,7 @@
 (defparameter *finished* nil "Serviced passengers")
 (defparameter *recording* nil "Enable dumping of events")
 (defparameter *generating* nil "Continuous generation of passengers")
+(defparameter *generating0* nil "Continuous generation of UP PEAK passengers")
 (defparameter *pending* 0 "Number of pending passengers in system")
 (defparameter *pending-limit* 0 "Limit on number of pending passengers in system")
 (defparameter *bldg* nil "The building with shafts, passengers etc.")
@@ -274,6 +275,13 @@
   (when (< (random 1.0) rate)
     (let* ((from (random top))
            (to (mod (+ (random (1- top)) 1 from top) top))
+           (psg (make-instance 'passg :from from :to to :dir (if (< from to) 'up 'down))))
+      psg)))
+
+(defun generate0 (top &optional (rate 0.5))
+  (when (< (random 1.0) rate)
+    (let* ((from 0)
+           (to (1+ (random (1- top))))
            (psg (make-instance 'passg :from from :to to :dir (if (< from to) 'up 'down))))
       psg)))
 
@@ -524,6 +532,8 @@
   "Run simulation for one time step, schedule next step after a delay"
   (when (and *generating* (< *pending* *pending-limit*))
     (assign (random-shaft) (generate (top *bldg*) 1)))
+  (when (and *generating0* (< *pending* *pending-limit*))
+    (assign (random-shaft) (generate0 (top *bldg*) 1)))
   (dolist (s (shafts *bldg*))
     (run-shaft s))
     (if (no-psg)
@@ -637,8 +647,8 @@
  (setq *img* (ltk:make-image))
   (ltk:image-load *img* *logo-file*)
   (ltk:create-image (view *passenger-plane*) -200 0 :image *img*)
-  (ltk:grid (view *passenger-plane*) 0 *call-column* :rowspan 5)
-  (ltk:grid *floor-plane* 0 *floor-column*  :rowspan 5)
+  (ltk:grid (view *passenger-plane*) 0 *call-column* :rowspan 6)
+  (ltk:grid *floor-plane* 0 *floor-column*  :rowspan 6)
   (setq *pending-limit* (* *ns* *nc*))
   
   ;(setq *ns* 3 *nc* 4 *top* 12 *top+* (+ *nc* *top* 1) d (floor (/ h *top+*)) p 4)
@@ -677,7 +687,7 @@
       ;; Remember the positions of each car, this will be updated when they move
       (loop for i from 0 below *nc* for c in (cages s) do 
         (setf (aref (cpos s) i) (pos c)))
-      (ltk:grid view 0 (+ *shaft-column* (id s)) :rowspan 5)
+      (ltk:grid view 0 (+ *shaft-column* (id s)) :rowspan 6)
       (home-all s)))
   
   (dotimes (i (top *bldg*)) 
@@ -691,7 +701,7 @@
            (s (nth n (shafts *bldg*))))
       s))
   
-  (setq b0 (make-instance 'ltk::button :master nil :text "CALLS"
+  (setq b0 (make-instance 'ltk::button :master nil :text "ALL"
              :command (lambda () 
                         (setq *generating* (not *generating*))
                         (if *generating*
@@ -704,16 +714,29 @@
   (ltk:configure b0c :background "white")
   (ltk:grid b0c 0 0)
 
+  (setq b00 (make-instance 'ltk::button :master nil :text "UP"
+             :command (lambda () 
+                        (setq *generating0* (not *generating0*))
+                        (if *generating0*
+                            (ltk:configure b00c :background "red")
+                            (ltk:configure b00c :background "white")
+                       ))))
+  
+  (ltk:grid b00 1 *button-column*)
+  (setq b00c (make-instance 'ltk::canvas :master nil :width 8 :height 8))
+  (ltk:configure b00c :background "white")
+  (ltk:grid b00c 1 0)
+
   (setq b1 (make-instance 'ltk::button :master nil :text "STEP"
              :command (lambda () 
                         (dolist (s (shafts *bldg*))
                           (run-shaft s)))))
   
-  (ltk:grid b1 1 *button-column*)
+  (ltk:grid b1 2 *button-column*)
 
   (setq b2c (make-instance 'ltk::canvas :master nil :width 8 :height 8))
   (ltk:configure b2c :background "white")
-  (ltk:grid b2c 2 0)
+  (ltk:grid b2c 3 0)
   (setq b2 (make-instance 'ltk::button :master nil :text "GO"
              :command (lambda () 
                         (if *after* 
@@ -727,15 +750,15 @@
                               (ltk:configure b2c :background "red")
                               ))
                         )))
-  (ltk:grid b2 2 *button-column*)
+  (ltk:grid b2 3 *button-column*)
   (setq b3 (make-instance 'ltk::button :master nil :text "RESET"
              :command (lambda () 
                         (home-all-shafts))))
-  (ltk:grid b3 3 *button-column*)
+  (ltk:grid b3 4 *button-column*)
   (setq b4 (make-instance 'ltk::button :master nil :text "EXIT"
              :command (lambda () 
                         (setf ltk::*exit-mainloop* t))))
-  (ltk:grid b4 4 *button-column*)
+  (ltk:grid b4 5 *button-column*)
   (setq *delay* 500)
   
   (ltk:bind (view *passenger-plane*) "<ButtonPress-1>"
